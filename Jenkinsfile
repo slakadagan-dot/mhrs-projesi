@@ -4,15 +4,18 @@ pipeline {
     stages {
         stage('Hazirlik') {
             steps {
-                echo 'Jenkins ise basliyor...'
-                // Kodlarin gelip gelmedigini kontrol edelim
-                sh 'ls -la' 
+                echo 'Kodlar GitHub\'dan cekiliyor...'
+                sh 'ls -la'
             }
         }
         
-        stage('Backend Test') {
+        stage('Docker Build') {
             steps {
-                echo 'Burada ileride Python testleri kosacak...'
+                echo 'Backend icin Docker Image olusturuluyor...'
+                // backend klasorune girip build aliyoruz
+                dir('backend') {
+                    sh 'docker build -t mhrs-backend:v1 .'
+                }
             }
         }
     }
