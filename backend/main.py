@@ -56,7 +56,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(yeni_kullanici)
     
-    return {"mesaj": "Kayıt başarılı", "isim": yeni_kullanici.name, "doktor_mu": yeni_kullanici.is_doctor}
+    return {"mesaj": "Kayıt başarılı"}
 # YENİ EKLENEN KULLANICILARI LİSTELEME (GET) METODU
 @app.get("/users/")
 def get_users(db: Session = Depends(get_db)):
