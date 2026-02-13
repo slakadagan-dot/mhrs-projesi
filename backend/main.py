@@ -84,3 +84,18 @@ def get_appointments(db: Session = Depends(get_db)):
     # Veritabanındaki tüm randevuları çek
     randevular = db.query(models.Appointment).all()
     return randevular
+# YENİ EKLENEN RANDEVU İPTAL (DELETE) METODU
+@app.delete("/appointments/{appointment_id}")
+def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    # 1. Silinecek randevuyu ID'sine göre bul
+    randevu = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    
+    # 2. Eğer randevu yoksa hata ver
+    if not randevu:
+        raise HTTPException(status_code=404, detail="Böyle bir randevu bulunamadı.")
+    
+    # 3. Randevuyu veritabanından sil
+    db.delete(randevu)
+    db.commit()
+    
+    return {"mesaj": f"{appointment_id} numaralı randevu başarıyla iptal edildi!"}
