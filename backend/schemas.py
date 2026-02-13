@@ -5,3 +5,10 @@ class UserCreate(BaseModel):
     name: str
     password: str
     is_doctor: bool = False 
+# ... (Üstteki UserCreate kodları aynen kalacak)
+
+# --- YENİ EKLENEN KISIM ---
+class AppointmentCreate(BaseModel):
+    patient_id: int
+    doctor_id: int
+    appointment_date: str

@@ -50,3 +50,31 @@ def get_users(db: Session = Depends(get_db)):
     # Veritabanındaki tüm kullanıcıları çek
     kullanicilar = db.query(models.User).all()
     return kullanicilar
+# ... (Üstteki kodlar aynen kalacak)
+
+# --- YENİ EKLENEN RANDEVU OLUŞTURMA API'Sİ ---
+@app.post("/appointments/")
+def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
+    
+    # 1. Veritabanından Hasta ve Doktoru bul
+    hasta = db.query(models.User).filter(models.User.id == appointment.patient_id).first()
+    doktor = db.query(models.User).filter(models.User.id == appointment.doctor_id).first()
+
+    # 2. Güvenlik Kontrolleri
+    if not hasta:
+        raise HTTPException(status_code=404, detail="Böyle bir hasta bulunamadı.")
+    
+    if not doktor or not doktor.is_doctor:
+        raise HTTPException(status_code=400, detail="Seçtiğiniz kişi geçerli bir doktor değil!")
+
+    # 3. Her şey yolundaysa Randevuyu Kaydet
+    yeni_randevu = models.Appointment(
+        patient_id=appointment.patient_id,
+        doctor_id=appointment.doctor_id,
+        appointment_date=appointment.appointment_date
+    )
+    db.add(yeni_randevu)
+    db.commit()
+    db.refresh(yeni_randevu)
+    
+    return {"mesaj": "Randevu başarıyla oluşturuldu!", "tarih": yeni_randevu.appointment_date}
