@@ -78,3 +78,9 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     db.refresh(yeni_randevu)
     
     return {"mesaj": "Randevu başarıyla oluşturuldu!", "tarih": yeni_randevu.appointment_date}
+# YENİ EKLENEN RANDEVULARI LİSTELEME (GET) METODU
+@app.get("/appointments/")
+def get_appointments(db: Session = Depends(get_db)):
+    # Veritabanındaki tüm randevuları çek
+    randevular = db.query(models.Appointment).all()
+    return randevular
