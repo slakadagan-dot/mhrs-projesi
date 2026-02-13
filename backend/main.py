@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware # YENİ EKLENDİ
 from database import engine, SessionLocal
 import models, schemas
 
@@ -7,6 +8,15 @@ import models, schemas
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+# YENİ EKLENEN CORS AYARLARI (React'in bağlanmasına izin verir)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Geliştirme aşamasında her yerden gelen isteğe izin veriyoruz
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Veritabanı bağlantısı almak için yardımcı fonksiyon
 def get_db():
@@ -99,3 +109,4 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"mesaj": f"{appointment_id} numaralı randevu başarıyla iptal edildi!"}
+
