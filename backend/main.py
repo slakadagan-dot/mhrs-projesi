@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware # YENİ EKLENDİ
 from database import engine, SessionLocal
 import models, schemas
+import auth_utils
 
 # Tabloları oluştur
 models.Base.metadata.create_all(bind=engine)
@@ -37,10 +38,12 @@ def health_check():
 # YENİ EKLENEN KAYIT OLMA (POST) METODU
 @app.post("/users/")
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Bu TC numarasıyla daha önce kayıt olunmuş mu kontrol et
     db_user = db.query(models.User).filter(models.User.tc_no == user.tc_no).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Bu TC Kimlik No zaten kayıtlı.")
+    
+    # ŞİFREYİ ŞİFRELEYEREK KAYDET (GÜVENLİK ADIMI)
+    hashed_password = auth_utils.get_password_hash(user.password)
     
     # Yeni kullanıcıyı veritabanına ekle
     yeni_kullanici = models.User(
