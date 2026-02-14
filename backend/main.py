@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from fastapi.middleware.cors import CORSMiddleware # YENİ EKLENDİ
+from fastapi.middleware.cors import CORSMiddleware
 from database import engine, SessionLocal
 import models, schemas
 import auth_utils
@@ -35,40 +35,41 @@ def read_root():
 def health_check():
     return {"durum": "saglikli"}
 
-# YENİ EKLENEN KAYIT OLMA (POST) METODU
+# --- KULLANICI İŞLEMLERİ ---
+
 @app.post("/users/")
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Bu TC numarasıyla daha önce kayıt olunmuş mu kontrol et
     db_user = db.query(models.User).filter(models.User.tc_no == user.tc_no).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Bu TC Kimlik No zaten kayıtlı.")
     
-    # ŞİFREYİ ŞİFRELEYEREK KAYDET (GÜVENLİK ADIMI)
+    # ŞİFREYİ GİZLE (HASHLE)
     hashed_password = auth_utils.get_password_hash(user.password)
     
     # Yeni kullanıcıyı veritabanına ekle
     yeni_kullanici = models.User(
         tc_no=user.tc_no,
         name=user.name,
-        password=user.password, # Not: Gerçekte şifreler hash'lenerek saklanır!
+        password=hashed_password, # 🔒 SİHİRLİ DÜZELTME BURASI: Artık gizlenmiş şifre kaydediliyor!
         is_doctor=user.is_doctor
     )
     db.add(yeni_kullanici)
     db.commit()
     db.refresh(yeni_kullanici)
     
-    return {"mesaj": "Kayıt başarılı"}
-# YENİ EKLENEN KULLANICILARI LİSTELEME (GET) METODU
+    return {"mesaj": "Kayıt başarılı", "isim": yeni_kullanici.name}
+
 @app.get("/users/")
 def get_users(db: Session = Depends(get_db)):
     # Veritabanındaki tüm kullanıcıları çek
     kullanicilar = db.query(models.User).all()
     return kullanicilar
-# ... (Üstteki kodlar aynen kalacak)
 
-# --- YENİ EKLENEN RANDEVU OLUŞTURMA API'Sİ ---
+# --- RANDEVU İŞLEMLERİ ---
+
 @app.post("/appointments/")
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
-    
     # 1. Veritabanından Hasta ve Doktoru bul
     hasta = db.query(models.User).filter(models.User.id == appointment.patient_id).first()
     doktor = db.query(models.User).filter(models.User.id == appointment.doctor_id).first()
@@ -91,13 +92,13 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     db.refresh(yeni_randevu)
     
     return {"mesaj": "Randevu başarıyla oluşturuldu!", "tarih": yeni_randevu.appointment_date}
-# YENİ EKLENEN RANDEVULARI LİSTELEME (GET) METODU
+
 @app.get("/appointments/")
 def get_appointments(db: Session = Depends(get_db)):
     # Veritabanındaki tüm randevuları çek
     randevular = db.query(models.Appointment).all()
     return randevular
-# YENİ EKLENEN RANDEVU İPTAL (DELETE) METODU
+
 @app.delete("/appointments/{appointment_id}")
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     # 1. Silinecek randevuyu ID'sine göre bul
@@ -112,7 +113,9 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"mesaj": f"{appointment_id} numaralı randevu başarıyla iptal edildi!"}
-# YENİ EKLENEN GİRİŞ YAPMA (LOGIN) METODU
+
+# --- GİRİŞ YAPMA (LOGIN) İŞLEMİ ---
+
 @app.post("/login/")
 def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     # 1. Kullanıcıyı TC numarasına göre veritabanında bul
