@@ -1,20 +1,20 @@
 from datetime import datetime, timedelta
 from jose import jwt
-from passlib.context import CryptContext
-
-# Şifreleri şifrelemek için (Geri döndürülemez şekilde gizler)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt # Sorunlu passlib yerine doğrudan bcrypt kullanıyoruz
 
 # JWT Ayarları
-SECRET_KEY = "mhrs_gizli_anahtar_buraya" # Gerçek projede bunu kimse bilmemeli!
+SECRET_KEY = "mhrs_gizli_anahtar_buraya" 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    # Şifreleri byte formatına çevirip güvenli şekilde karşılaştırır
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    # Şifreyi bcrypt ile şifreleyip veritabanına yazılacak metne çevirir
+    hashed_bytes = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    return hashed_bytes.decode('utf-8')
 
 def create_access_token(data: dict):
     to_encode = data.copy()
