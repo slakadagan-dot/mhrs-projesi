@@ -12,3 +12,7 @@ class AppointmentCreate(BaseModel):
     patient_id: int
     doctor_id: int
     appointment_date: str
+   # YENİ EKLENEN LOGIN ŞEMASI
+class UserLogin(BaseModel):
+    tc_no: str
+    password: str 

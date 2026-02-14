@@ -112,4 +112,17 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"mesaj": f"{appointment_id} numaralı randevu başarıyla iptal edildi!"}
-
+# YENİ EKLENEN GİRİŞ YAPMA (LOGIN) METODU
+@app.post("/login/")
+def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
+    # 1. Kullanıcıyı TC numarasına göre veritabanında bul
+    kullanici = db.query(models.User).filter(models.User.tc_no == user_credentials.tc_no).first()
+    
+    # 2. Eğer kullanıcı yoksa veya girdiği şifre yanlışsa hata fırlat
+    if not kullanici or not auth_utils.verify_password(user_credentials.password, kullanici.password):
+        raise HTTPException(status_code=401, detail="TC Kimlik No veya Şifre Hatalı!")
+    
+    # 3. Her şey doğruysa kullanıcıya özel bir Token (Dijital Kart) üret
+    access_token = auth_utils.create_access_token(data={"sub": kullanici.tc_no})
+    
+    return {"access_token": access_token, "token_type": "bearer", "mesaj": f"Hoşgeldin, {kullanici.name}!"}
