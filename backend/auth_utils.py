@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from jose import jwt
-import bcrypt # Sorunlu passlib yerine doğrudan bcrypt kullanıyoruz
+import bcrypt
 
 # JWT Ayarları
 SECRET_KEY = "mhrs_gizli_anahtar_buraya" 
@@ -8,8 +8,12 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def verify_password(plain_password, hashed_password):
-    # Şifreleri byte formatına çevirip güvenli şekilde karşılaştırır
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    try:
+        # Şifreleri güvenli şekilde karşılaştırır
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except ValueError:
+        # EĞER VERİTABANINDA ESKİ (HASHLENMEMİŞ) BİR ŞİFRE VARSA SİSTEMİN ÇÖKMESİNİ ENGELLER!
+        return False
 
 def get_password_hash(password):
     # Şifreyi bcrypt ile şifreleyip veritabanına yazılacak metne çevirir
