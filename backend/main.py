@@ -51,7 +51,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     yeni_kullanici = models.User(
         tc_no=user.tc_no,
         name=user.name,
-        password=hashed_password, # 🔒 SİHİRLİ DÜZELTME BURASI: Artık gizlenmiş şifre kaydediliyor!
+        password=hashed_password, # Artık gizlenmiş şifre kaydediliyor!
         is_doctor=user.is_doctor
     )
     db.add(yeni_kullanici)
@@ -128,4 +128,12 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     # 3. Her şey doğruysa kullanıcıya özel bir Token (Dijital Kart) üret
     access_token = auth_utils.create_access_token(data={"sub": kullanici.tc_no})
     
-    return {"access_token": access_token, "token_type": "bearer", "mesaj": f"Hoşgeldin, {kullanici.name}!"}
+    # 4. SİHİRLİ DOKUNUŞ: React'e giriş yapan kişinin kim olduğunu söylüyoruz
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "mesaj": f"Hoşgeldin, {kullanici.name}!",
+        "user_id": kullanici.id,       # Randevu alırken bu lazım olacak
+        "name": kullanici.name,        # Ekrana ismini yazmak için
+        "is_doctor": kullanici.is_doctor # Doktor mu hasta mı ayrımı için
+    }
