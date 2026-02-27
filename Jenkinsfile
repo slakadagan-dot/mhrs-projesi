@@ -2,24 +2,28 @@ pipeline {
     agent any
 
     stages {
+        stage('Gereksinimleri Kur') {
+            steps {
+                sh 'curl -sSL "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64" -o ./docker-compose'
+                sh 'chmod +x ./docker-compose'
+            }
+        }
+        
         stage('Sistemi Temizle') {
             steps {
-                echo 'Eski sistem temizleniyor...'
-                sh 'docker compose down'
+                sh './docker-compose down || true'
             }
         }
         
         stage('Derleme (Build)') {
             steps {
-                echo 'Tüm projeler derleniyor...'
-                sh 'docker compose build'
+                sh './docker-compose build'
             }
         }
         
         stage('Yayına Al (Deploy)') {
             steps {
-                echo 'Sistem ayağa kaldırılıyor...'
-                sh 'docker compose up -d'
+                sh './docker-compose up -d'
             }
         }
     }
