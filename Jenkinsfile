@@ -2,30 +2,24 @@ pipeline {
     agent any
 
     stages {
-        stage('Hazirlik') {
+        stage('Sistemi Temizle') {
             steps {
-                echo 'Kodlar GitHub\'dan cekiliyor...'
+                echo 'Eski sistem temizleniyor...'
+                sh 'docker-compose down'
             }
         }
         
-        stage('Build (Paketleme)') {
+        stage('Derleme (Build)') {
             steps {
-                echo 'Docker Image olusturuluyor...'
-                dir('backend') {
-                    sh 'docker build -t mhrs-backend:v1 .'
-                }
+                echo 'Tüm projeler derleniyor...'
+                sh 'docker-compose build'
             }
         }
-
-        stage('Deploy (Yayinlama)') {
+        
+        stage('Yayına Al (Deploy)') {
             steps {
-                echo 'Eski konteyner varsa durduruluyor ve yenisi baslatiliyor...'
-                // Eski çalışan varsa durdur ve sil (Hata verirse yoksay "|| true")
-                sh 'docker stop mhrs-backend-container || true'
-                sh 'docker rm mhrs-backend-container || true'
-                
-                // Yenisini başlat (8000 portunda)
-                sh 'docker run -d --restart=always --name mhrs-backend-container -p 8000:8000 mhrs-backend:v1'
+                echo 'Sistem ayağa kaldırılıyor...'
+                sh 'docker-compose up -d'
             }
         }
     }
