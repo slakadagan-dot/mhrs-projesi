@@ -2,19 +2,24 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from database import Base
 
 class User(Base):
-    __tablename__ = "users"
-
+    __tablename__ = "users_v2" 
     id = Column(Integer, primary_key=True, index=True)
-    tc_no = Column(String, unique=True, index=True)
-    name = Column(String)
-    password = Column(String)
+    tc_no = Column(String(11), unique=True, index=True)
+    name = Column(String(50))
+    password = Column(String(255))  # Şifreler sığsın diye genişletmiştik
     is_doctor = Column(Boolean, default=False)
+    gender = Column(String(10))
+    birth_date = Column(String(20))
+    province = Column(String(50), nullable=True)
+    district = Column(String(50), nullable=True)
+    department = Column(String(50), nullable=True)
 
-# --- YENİ EKLENEN KISIM ---
 class Appointment(Base):
-    __tablename__ = "appointments"
-
+    __tablename__ = "appointments_v3"
     id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("users.id")) # Hasta ID'si
-    doctor_id = Column(Integer, ForeignKey("users.id"))  # Doktor ID'si
-    appointment_date = Column(String) # Örn: "2024-03-15 14:30"
+    patient_id = Column(Integer, ForeignKey("users_v2.id"))
+    doctor_id = Column(Integer)
+    appointment_date = Column(String(20))
+    appointment_time = Column(String(10))
+    clinic = Column(String(100))
+    doctor_name = Column(String(100))

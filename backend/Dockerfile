@@ -1,15 +1,18 @@
-# Python 3.9 sürümünü temel al
-FROM python:3.9-slim
+FROM python:3.12-slim
 
-# Çalışma klasörünü ayarla
 WORKDIR /app
 
-# Gereksinim dosyasını kopyala ve yükle
+RUN apt-get update && apt-get install -y \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Tüm kodları kopyala
 COPY . .
 
-# Uygulamayı başlat (FastAPI)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

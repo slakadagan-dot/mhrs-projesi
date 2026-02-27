@@ -1,25 +1,28 @@
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+import models
+import schemas
 from database import engine, SessionLocal
-import models, schemas
-import auth_utils
+from typing import List
 
-# Tabloları oluştur
+# GÜVENLİK İÇİN EKLENEN KÜTÜPHANELER
+from passlib.context import CryptContext
+import jwt
+from datetime import datetime, timedelta
+
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# YENİ EKLENEN CORS AYARLARI (React'in bağlanmasına izin verir)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Geliştirme aşamasında her yerden gelen isteğe izin veriyoruz
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Veritabanı bağlantısı almak için yardımcı fonksiyon
 def get_db():
     db = SessionLocal()
     try:
@@ -27,113 +30,159 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/")
-def read_root():
-    return {"mesaj": "MHRS Randevu Sistemi Backend Çalışıyor!"}
+# --- GÜVENLİK AYARLARI (ŞİFRELEME VE JWT) ---
+SECRET_KEY = "mhrs_super_gizli_anahtar"
+ALGORITHM = "HS256"
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@app.get("/health")
-def health_check():
-    return {"durum": "saglikli"}
+def hash_password(password: str):
+    return pwd_context.hash(password)
 
-# --- KULLANICI İŞLEMLERİ ---
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(hours=2) # Token 2 saat geçerli
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+# ---------------------------------------------
+
+@app.get("/system-data/")
+def get_system_data():
+    return {
+        "provinces": ["İstanbul", "Ankara", "İzmir"],
+        "districts": { 
+            "İstanbul": ["Kadıköy", "Beşiktaş", "Şişli"], 
+            "Ankara": ["Çankaya", "Keçiören", "Yenimahalle"], 
+            "İzmir": ["Bornova", "Karşıyaka", "Konak"] 
+        },
+        "clinics": ["Dahiliye", "Göz Hastalıkları", "Ortopedi", "Kardiyoloji", "Nöroloji", "Cildiye"],
+        "doctors": { 
+            "Dahiliye": ["Dr. Ahmet Yılmaz", "Dr. Pelin Su"], 
+            "Göz Hastalıkları": ["Dr. Mehmet Öz", "Dr. Ayşe Demir"], 
+            "Ortopedi": ["Dr. Ali Veli"], 
+            "Kardiyoloji": ["Dr. Mustafa Kemal"], 
+            "Nöroloji": ["Dr. Gül Demir"], 
+            "Cildiye": ["Dr. Eda Yıldız"] 
+        },
+        "timeSlots": ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "13:30", "14:00", "14:30", "15:00", "15:30"]
+    }
 
 @app.post("/users/")
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Bu TC numarasıyla daha önce kayıt olunmuş mu kontrol et
-    db_user = db.query(models.User).filter(models.User.tc_no == user.tc_no).first()
+    db_user = db.query(models.User).filter(models.User.tc_no == user.tc_no.strip()).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Bu TC Kimlik No zaten kayıtlı.")
     
-    # ŞİFREYİ GİZLE (HASHLE)
-    hashed_password = auth_utils.get_password_hash(user.password)
-    
-    # Yeni kullanıcıyı veritabanına ekle
-    yeni_kullanici = models.User(
-        tc_no=user.tc_no,
-        name=user.name,
-        password=hashed_password, # Artık gizlenmiş şifre kaydediliyor!
-        is_doctor=user.is_doctor
+    new_user = models.User(
+        tc_no=user.tc_no.strip(),
+        name=user.name.strip(),
+        password=hash_password(user.password.strip()), # ŞİFRE ARTIK KRİPTOLANIYOR!
+        is_doctor=user.is_doctor,
+        gender=user.gender,
+        birth_date=user.birth_date,
+        province=user.province,
+        district=user.district,
+        department=user.department
     )
-    db.add(yeni_kullanici)
+    db.add(new_user)
     db.commit()
-    db.refresh(yeni_kullanici)
+    db.refresh(new_user)
+    return new_user
+
+@app.post("/login/")
+def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+    temiz_tc = user.tc_no.strip()
+    temiz_sifre = user.password.strip()
     
-    return {"mesaj": "Kayıt başarılı", "isim": yeni_kullanici.name}
+    db_user = db.query(models.User).filter(models.User.tc_no == temiz_tc).first()
+    
+    # Şifre doğrulama artık Bcrypt ile güvenli bir şekilde yapılıyor
+    if not db_user or not verify_password(temiz_sifre, db_user.password):
+        raise HTTPException(status_code=400, detail="TC No veya Şifre hatalı")
+    
+    # Gerçek bir JWT Token üretiyoruz
+    access_token = create_access_token(data={"sub": db_user.tc_no})
+    
+    return {
+        "access_token": access_token, 
+        "user_id": db_user.id,
+        "tc_no": db_user.tc_no,
+        "name": db_user.name,
+        "is_doctor": db_user.is_doctor,
+        "gender": db_user.gender,
+        "birth_date": db_user.birth_date,
+        "department": db_user.department,
+        "province": db_user.province,
+        "district": db_user.district
+    }
 
 @app.get("/users/")
 def get_users(db: Session = Depends(get_db)):
-    # Veritabanındaki tüm kullanıcıları çek
-    kullanicilar = db.query(models.User).all()
-    return kullanicilar
-
-# --- RANDEVU İŞLEMLERİ ---
+    return db.query(models.User).all()
 
 @app.post("/appointments/")
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
-    # 1. Veritabanından Hasta ve Doktoru bul
-    hasta = db.query(models.User).filter(models.User.id == appointment.patient_id).first()
-    doktor = db.query(models.User).filter(models.User.id == appointment.doctor_id).first()
-
-    # 2. Güvenlik Kontrolleri
-    if not hasta:
-        raise HTTPException(status_code=404, detail="Böyle bir hasta bulunamadı.")
     
-    if not doktor or not doktor.is_doctor:
-        raise HTTPException(status_code=400, detail="Seçtiğiniz kişi geçerli bir doktor değil!")
+    # 1. KONTROL: Doktor o saatte dolu mu?
+    doctor_conflict = db.query(models.Appointment).filter(
+        models.Appointment.doctor_name == appointment.doctor_name,
+        models.Appointment.appointment_date == appointment.appointment_date,
+        models.Appointment.appointment_time == appointment.appointment_time
+    ).first()
 
-    # 3. Her şey yolundaysa Randevuyu Kaydet
-    yeni_randevu = models.Appointment(
+    if doctor_conflict:
+        raise HTTPException(status_code=400, detail="Seçilen doktorun bu saatteki randevusu maalesef dolu.")
+
+    # 2. KONTROL: Hasta aynı saatte başka doktordan randevu almış mı? (YENİ)
+    patient_conflict = db.query(models.Appointment).filter(
+        models.Appointment.patient_id == appointment.patient_id,
+        models.Appointment.appointment_date == appointment.appointment_date,
+        models.Appointment.appointment_time == appointment.appointment_time
+    ).first()
+
+    if patient_conflict:
+        raise HTTPException(status_code=400, detail="Sizin bu tarih ve saatte zaten başka bir randevunuz var!")
+
+    new_appointment = models.Appointment(
         patient_id=appointment.patient_id,
         doctor_id=appointment.doctor_id,
-        appointment_date=appointment.appointment_date
+        appointment_date=appointment.appointment_date,
+        appointment_time=appointment.appointment_time, 
+        clinic=appointment.clinic,                     
+        doctor_name=appointment.doctor_name            
     )
-    db.add(yeni_randevu)
+    db.add(new_appointment)
     db.commit()
-    db.refresh(yeni_randevu)
-    
-    return {"mesaj": "Randevu başarıyla oluşturuldu!", "tarih": yeni_randevu.appointment_date}
+    db.refresh(new_appointment)
+    return new_appointment
 
-@app.get("/appointments/")
-def get_appointments(db: Session = Depends(get_db)):
-    # Veritabanındaki tüm randevuları çek
-    randevular = db.query(models.Appointment).all()
-    return randevular
+@app.get("/appointments/{user_id}")
+def get_user_appointments(user_id: int, db: Session = Depends(get_db)):
+    return db.query(models.Appointment).filter(models.Appointment.patient_id == user_id).all()
+
+@app.get("/doctor-appointments/{doctor_name}")
+def get_doctor_appointments(doctor_name: str, db: Session = Depends(get_db)):
+    results = db.query(models.Appointment, models.User).join(models.User, models.Appointment.patient_id == models.User.id).filter(models.Appointment.doctor_name == doctor_name).all()
+    
+    clean_list = []
+    for appt, user in results:
+        clean_list.append({
+            "id": appt.id,
+            "date": appt.appointment_date,
+            "time": appt.appointment_time,
+            "patient_name": user.name,
+            "patient_tc": user.tc_no
+        })
+    return clean_list
 
 @app.delete("/appointments/{appointment_id}")
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
-    # 1. Silinecek randevuyu ID'sine göre bul
-    randevu = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    appointment = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Randevu bulunamadı")
     
-    # 2. Eğer randevu yoksa hata ver
-    if not randevu:
-        raise HTTPException(status_code=404, detail="Böyle bir randevu bulunamadı.")
-    
-    # 3. Randevuyu veritabanından sil
-    db.delete(randevu)
+    db.delete(appointment)
     db.commit()
-    
-    return {"mesaj": f"{appointment_id} numaralı randevu başarıyla iptal edildi!"}
-
-# --- GİRİŞ YAPMA (LOGIN) İŞLEMİ ---
-
-@app.post("/login/")
-def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    # 1. Kullanıcıyı TC numarasına göre veritabanında bul
-    kullanici = db.query(models.User).filter(models.User.tc_no == user_credentials.tc_no).first()
-    
-    # 2. Eğer kullanıcı yoksa veya girdiği şifre yanlışsa hata fırlat
-    if not kullanici or not auth_utils.verify_password(user_credentials.password, kullanici.password):
-        raise HTTPException(status_code=401, detail="TC Kimlik No veya Şifre Hatalı!")
-    
-    # 3. Her şey doğruysa kullanıcıya özel bir Token (Dijital Kart) üret
-    access_token = auth_utils.create_access_token(data={"sub": kullanici.tc_no})
-    
-    # 4. SİHİRLİ DOKUNUŞ: React'e giriş yapan kişinin kim olduğunu söylüyoruz
-    return {
-        "access_token": access_token, 
-        "token_type": "bearer", 
-        "mesaj": f"Hoşgeldin, {kullanici.name}!",
-        "user_id": kullanici.id,       # Randevu alırken bu lazım olacak
-        "name": kullanici.name,        # Ekrana ismini yazmak için
-        "is_doctor": kullanici.is_doctor # Doktor mu hasta mı ayrımı için
-    }
+    return {"message": "Randevu başarıyla iptal edildi"}
