@@ -3,6 +3,8 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function App() {
+  const API_URL = `http://${window.location.hostname}:8005`;
+
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [loggedInUser, setLoggedInUser] = useState(null);
 
@@ -48,7 +50,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetch("http://localhost:8005/system-data/")
+    fetch(`${API_URL}/system-data/`)
       .then(res => res.json())
       .then(data => setSysData(data))
       .catch(err => console.error("Sistem verileri çekilemedi", err));
@@ -56,7 +58,7 @@ export default function App() {
 
   const fetchAppointmentsFromDB = async (userId) => {
     try {
-      const response = await fetch(`http://localhost:8005/appointments/${userId}`);
+      const response = await fetch(`${API_URL}/appointments/${userId}`);
       const data = await response.json();
       if (response.ok) {
         const formattedData = data.map(appt => ({
@@ -70,7 +72,7 @@ export default function App() {
 
   const fetchDoctorPatients = async (doctorName) => {
     try {
-      const response = await fetch(`http://localhost:8005/doctor-appointments/Dr. ${doctorName}`);
+      const response = await fetch(`${API_URL}/doctor-appointments/Dr. ${doctorName}`);
       const data = await response.json();
       if (response.ok) {
         setDoctorPatients(data);
@@ -81,7 +83,7 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:8005/login/", {
+      const response = await fetch(`${API_URL}/login/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tc_no: loginTc, password: loginPassword })
@@ -104,7 +106,7 @@ export default function App() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:8005/users/", {
+      const response = await fetch(`${API_URL}/users/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tc_no: regTc, name: regName, password: regPassword, is_doctor: isDoctorRegister, gender: regGender, birth_date: regBirthDate, department: isDoctorRegister ? "Genel" : null })
@@ -133,7 +135,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch("http://localhost:8005/appointments/", {
+      const response = await fetch(`${API_URL}/appointments/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patient_id: loggedInUser.user_id, doctor_id: 1, appointment_date: appDate, appointment_time: appTime, clinic: selClinic, doctor_name: selDoctor })
@@ -153,7 +155,7 @@ export default function App() {
   const handleCancelAppointment = async (id) => {
     if (!window.confirm("Bu randevuyu iptal etmek istediğinize emin misiniz?")) return;
     try {
-      const response = await fetch(`http://localhost:8005/appointments/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_URL}/appointments/${id}`, { method: 'DELETE' });
       if (response.ok) {
         toast.info("Randevu iptal edildi.");
         setMyAppointments(myAppointments.filter(appt => appt.id !== id));
