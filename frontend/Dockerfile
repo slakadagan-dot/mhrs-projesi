@@ -1,5 +1,5 @@
-# 1. Asama: Build (Derleme)
-FROM node:20 as build
+# 1. Asama: Build (Derleme) - ALPINE VERSİYONU EKLENDİ
+FROM node:20-alpine as build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
