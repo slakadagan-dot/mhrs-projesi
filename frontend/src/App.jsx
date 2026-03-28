@@ -3,7 +3,9 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function App() {
+  // --- IP ADRESI GÜNCELLEMESI ---
   const API_URL = `http://${window.location.hostname}:8005`;
+  // -----------------------------
 
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [loggedInUser, setLoggedInUser] = useState(null);
@@ -47,6 +49,12 @@ export default function App() {
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const isPast = (dateStr, timeStr) => {
+    const today = new Date();
+    const apptDate = new Date(`${dateStr}T${timeStr}`);
+    return apptDate < today;
   };
 
   useEffect(() => {
@@ -158,8 +166,9 @@ export default function App() {
       const response = await fetch(`${API_URL}/appointments/${id}`, { method: 'DELETE' });
       if (response.ok) {
         toast.info("Randevu iptal edildi.");
-        setMyAppointments(myAppointments.filter(appt => appt.id !== id));
+        // Yenile
         if (loggedInUser.is_doctor) fetchDoctorPatients(loggedInUser.name);
+        else fetchAppointmentsFromDB(loggedInUser.user_id);
       } else { toast.error("İptal işlemi başarısız."); }
     } catch (error) { toast.error("Sunucu hatası!"); }
   };
@@ -168,12 +177,6 @@ export default function App() {
     setLoggedInUser(null); setLoginTc(''); setLoginPassword(''); setShowAppointmentForm(false); setShowProfile(false); setMyAppointments([]); setDoctorPatients([]);
     resetAppointmentForm();
     toast.info("Çıkış yapıldı.");
-  };
-
-  const isPast = (dateStr, timeStr) => {
-    const today = new Date();
-    const apptDate = new Date(dateStr + 'T' + timeStr);
-    return apptDate < today;
   };
 
   const styles = {
@@ -213,6 +216,10 @@ export default function App() {
 
   if (loggedInUser) {
     if (loggedInUser.is_doctor) {
+      // --- DOKTOR PANELI GÜNCELLEMESI ---
+      const doctorUpcoming = doctorPatients.filter(appt => !isPast(appt.date, appt.time));
+      const doctorPast = doctorPatients.filter(appt => isPast(appt.date, appt.time));
+
       return (
         <div style={styles.dashboardContainer}>
           <ToastContainer position="top-right" autoClose={3000} />
@@ -227,30 +234,69 @@ export default function App() {
                     <h4 style={{ color: '#2c3e50', marginBottom: '10px' }}>Doktor Bilgileri</h4>
                     <div style={styles.profileItem}><strong>T.C.:</strong> {loggedInUser.tc_no}</div>
                     <div style={styles.profileItem}><strong>Ad:</strong> {loggedInUser.name}</div>
-                    <div style={styles.profileItem}><strong>Cinsiyet:</strong> {loggedInUser.gender || 'Belirtilmedi'}</div>
-                    <div style={{ ...styles.profileItem, borderBottom: 'none' }}><strong>Doğum:</strong> {loggedInUser.birth_date || 'Belirtilmedi'}</div>
                   </div>
                 )}
               </div>
             </div>
           </header>
           <main style={styles.mainContent}>
+
+            {/* --- EKSTRA: DOKTOR ÖZET PANELİ --- */}
+            <div style={{ ...styles.card, borderLeft: '5px solid #28a745', gridColumn: '1 / -1' }}>
+              <h3 style={{ ...styles.cardTitle, color: '#28a745' }}>📊 Doktor Özet Paneli</h3>
+              <div style={{ display: 'flex', gap: '20px', marginTop: '15px' }}>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <strong>Toplam Gelecek Hasta</strong>
+                  <div style={{ fontSize: '24px', color: '#2c3e50', fontWeight: 'bold' }}>{doctorUpcoming.length}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <strong>Toplam Geçmiş Hasta</strong>
+                  <div style={{ fontSize: '24px', color: '#555' }}>{doctorPast.length}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* --- BÖLÜM 1: GELECEK HASTALAR (Aktif) --- */}
             <div style={{ ...styles.card, borderLeft: '5px solid #2c3e50', gridColumn: '1 / -1' }}>
-              <h3 style={styles.cardTitle}>📋 Hasta Randevu Listesi</h3>
+              <h3 style={styles.cardTitle}>🕒 Gelecek Hasta Randevu Listesi ({doctorUpcoming.length})</h3>
               <div style={{ padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-                {doctorPatients.length === 0 ? <p style={{ color: '#888' }}>Henüz kayıtlı hasta randevunuz yok.</p> :
-                  doctorPatients.map(patient => (
+                {doctorUpcoming.length === 0 ? <p style={{ color: '#888' }}>Bekleyen hasta randevunuz yok.</p> :
+                  doctorUpcoming.map(patient => (
                     <div key={patient.id} style={{ borderBottom: '1px solid #ddd', padding: '15px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <strong style={{ color: '#2c3e50', fontSize: '18px' }}>📅 {patient.date} - ⏰ {patient.time}</strong>
                         <div style={{ marginTop: '5px', color: '#333', fontWeight: 'bold' }}>👤 Hasta: {patient.patient_name}</div>
                         <div style={{ color: '#555', fontSize: '14px' }}>T.C.: {patient.patient_tc}</div>
                       </div>
+                      {/* İstenen "Tamamla" veya "İptal" butonları buraya */}
+                      <div>
+                        <button style={{ ...styles.mainButton, width: 'auto', padding: '8px 15px', marginTop: 0 }}>Tamamla</button>
+                        <button style={{ ...styles.cancelButton, width: 'auto', padding: '8px 15px', marginTop: 0, marginLeft: '10px' }} onClick={() => handleCancelAppointment(patient.id)}>İptal Et</button>
+                      </div>
                     </div>
                   ))
                 }
               </div>
             </div>
+
+            {/* --- BÖLÜM 2: GEÇMİŞ HASTALAR (Soluklaşmış) --- */}
+            {doctorPast.length > 0 && (
+              <div style={{ ...styles.card, opacity: 0.6, borderLeft: '5px solid #aaa', gridColumn: '1 / -1' }}>
+                <h3 style={{ ...styles.cardTitle, color: '#aaa' }}>🕰️ Geçmiş Hasta Listesi ({doctorPast.length})</h3>
+                <div style={{ padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
+                  {doctorPast.map(patient => (
+                    <div key={patient.id} style={{ borderBottom: '1px solid #ddd', padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong style={{ color: '#555' }}>📅 {patient.date} - ⏰ {patient.time}</strong>
+                        <div style={{ color: '#333' }}>👤 Hasta: {patient.patient_name}</div>
+                      </div>
+                      <span style={{ color: '#aaa', fontStyle: 'italic' }}>Tamamlandı / Süresi Geçti</span>
+                    </div>
+                  ))
+                  }
+                </div>
+              </div>
+            )}
           </main>
         </div>
       );
@@ -273,8 +319,6 @@ export default function App() {
                   <h4 style={{ color: '#e30a17', marginBottom: '10px' }}>Kullanıcı Bilgileri</h4>
                   <div style={styles.profileItem}><strong>T.C.:</strong> {loggedInUser.tc_no}</div>
                   <div style={styles.profileItem}><strong>Ad:</strong> {loggedInUser.name}</div>
-                  <div style={styles.profileItem}><strong>Cinsiyet:</strong> {loggedInUser.gender || 'Belirtilmedi'}</div>
-                  <div style={{ ...styles.profileItem, borderBottom: 'none' }}><strong>Doğum:</strong> {loggedInUser.birth_date || 'Belirtilmedi'}</div>
                 </div>
               )}
             </div>
@@ -324,9 +368,9 @@ export default function App() {
               </div>
 
               {past.length > 0 && (
-                <div style={{ ...styles.card, borderLeft: '5px solid #aaa' }}>
+                <div style={{ ...styles.card, opacity: 0.6, borderLeft: '5px solid #aaa' }}>
                   <h3 style={{ ...styles.cardTitle, color: '#aaa' }}>🕰️ Geçmiş Randevular</h3>
-                  <div style={{ padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '8px', opacity: 0.7 }}>
+                  <div style={{ padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
                     {past.map(appt => (
                       <div key={appt.id} style={{ borderBottom: '1px solid #ddd', padding: '10px 0' }}>
                         <strong style={{ color: '#555' }}>📅 {appt.date} - {appt.time}</strong> | {appt.clinic}
